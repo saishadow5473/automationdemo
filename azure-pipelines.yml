@@ -1,0 +1,81 @@
+trigger:
+  branches:
+    include:
+    - master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+stages:
+- stage: DeployStage
+  jobs:
+  - job: Virtualmachine
+    steps:
+    - task: NodeTool@0
+      inputs:
+        versionSpec: '18.10'
+      displayName: 'Install Node.js'
+      
+    - task: CmdLine@2
+      displayName: 'npm install and build'
+      inputs:
+        script: |
+          npm install -g @angular/cli
+          npm audit fix --force
+          npm install
+          ng build
+          
+    - task: ArchiveFiles@2
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/dist/automationdemo'
+        includeRootFolder: false
+        archiveType: 'zip'
+        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        replaceExistingArchive: true
+        
+    - task: PublishBuildArtifacts@1
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
+        ArtifactName: 'drop'
+
+  - job: Deploy
+    displayName: 'Deploy to VM'
+    dependsOn:
+    - Virtualmachine
+    steps:
+    - task: CopyFiles@2
+      inputs:
+        SourceFolder: '$(Pipeline.Workspace)'
+        Contents: '**/*.zip'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
+        
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifactName: 'drop'
+        targetPath: '$(System.ArtifactsDirectory)'
+        
+    - powershell: |
+        Expand-Archive -Path $(System.ArtifactsDirectory)\$(Build.BuildId).zip -DestinationPath $(System.ArtifactsDirectory)\extracted
+      displayName: 'Extract artifact'
+      
+    - powershell: Get-ChildItem -Path $(System.ArtifactsDirectory)/extracted -Recurse
+      displayName: 'List Extracted Files'
+      
+    - task: CopyFiles@2
+      inputs:
+        SourceFolder: '$(System.ArtifactsDirectory)/extracted'
+        Contents: '**/*'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)'
+        
+    - task: CopyFilesOverSSH@0
+      inputs:
+        sshEndpoint: 'automation'
+        sourceFolder: '$(System.ArtifactsDirectory)/extracted'
+        contents: '**/*'
+        targetFolder: '/home/azureuser/'
+        
+    - task: SSH@0
+      inputs:
+        sshEndpoint: 'automation'
+        runOptions: 'inline'
+        inline: 'sudo mv /home/azureuser/* /var/www/html/ && sudo systemctl restart apache2'
