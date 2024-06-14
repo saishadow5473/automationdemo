@@ -48,19 +48,32 @@ stages:
       dependsOn:
         - Virtualmachine
       steps:
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(Pipeline.Workspace)'
+            Contents: '**/*.zip'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)'
+          displayName: 'Copy Artifact to Artifact Staging Directory'
+
         - task: DownloadPipelineArtifact@2
           inputs:
             artifactName: 'drop'
             targetPath: '$(System.ArtifactsDirectory)'
-          displayName: 'Download Artifact'
+          displayName: 'Download Artifact to Pipeline Workspace'
 
         - task: PowerShell@2
           inputs:
             targetType: 'inline'
             script: |
-              Expand-Archive -Path "$(System.ArtifactsDirectory)/drop/$(Build.BuildId).zip" -DestinationPath "$(System.ArtifactsDirectory)/extracted"
-              Get-ChildItem -Path "$(System.ArtifactsDirectory)/extracted" -Recurse
+              Expand-Archive -Path $(System.ArtifactsDirectory)\$(Build.BuildId).zip -DestinationPath $(System.ArtifactsDirectory)\extracted
+              Get-ChildItem -Path $(System.ArtifactsDirectory)/extracted -Recurse
           displayName: 'Extract and list artifact'
+        
+        - task: CopyFiles@2
+          inputs:
+            SourceFolder: '$(System.ArtifactsDirectory)/extracted'
+            Contents: '**/*'
+            TargetFolder: '$(Build.ArtifactStagingDirectory)'
 
         - task: CopyFilesOverSSH@0
           inputs:
