@@ -15,14 +15,23 @@ stages:
       displayName: 'Install Node.js'
       
     - task: CmdLine@2
-      displayName: 'npm install and build'
+      displayName: 'Install npm and Angular CLI'
       inputs:
         script: |
+          npm install -g npm@6
           npm install -g @angular/cli@8.2.1
-          npm install
-          npm audit fix --force
-          ng build
-          
+
+    - task: Npm@1
+      displayName: 'Install dependencies'
+      inputs:
+        command: 'install'
+    
+    - task: CmdLine@2
+      displayName: 'Build Angular project'
+      inputs:
+        script: |
+          ng build --prod
+
     - task: ArchiveFiles@2
       inputs:
         rootFolderOrFile: '$(System.DefaultWorkingDirectory)/dist/automationdemo'
@@ -41,39 +50,27 @@ stages:
     dependsOn:
     - Virtualmachine
     steps:
-    - task: CopyFiles@2
-      inputs:
-        SourceFolder: '$(Pipeline.Workspace)'
-        Contents: '**/*.zip'
-        TargetFolder: '$(Build.ArtifactStagingDirectory)'
-        
     - task: DownloadPipelineArtifact@2
       inputs:
         artifactName: 'drop'
         targetPath: '$(System.ArtifactsDirectory)'
         
-    - powershell: |
-        Expand-Archive -Path $(System.ArtifactsDirectory)\$(Build.BuildId).zip -DestinationPath $(System.ArtifactsDirectory)\extracted
-      displayName: 'Extract artifact'
-      
-    - powershell: Get-ChildItem -Path $(System.ArtifactsDirectory)/extracted -Recurse
-      displayName: 'List Extracted Files'
-      
-    - task: CopyFiles@2
+    - task: PowerShell@2
       inputs:
-        SourceFolder: '$(System.ArtifactsDirectory)/extracted'
-        Contents: '**/*'
-        TargetFolder: '$(Build.ArtifactStagingDirectory)'
+        targetType: 'inline'
+        script: |
+          Expand-Archive -Path "$(System.ArtifactsDirectory)/$(Build.DefinitionName)-$(Build.BuildId).zip" -DestinationPath "$(System.ArtifactsDirectory)/extracted"
+          Get-ChildItem -Path "$(System.ArtifactsDirectory)/extracted" -Recurse
         
     - task: CopyFilesOverSSH@0
       inputs:
-        sshEndpoint: 'automationdemo'
+        sshEndpoint: 'automationdemo'  # Replace with your SSH service connection name
         sourceFolder: '$(System.ArtifactsDirectory)/extracted'
         contents: '**/*'
-        targetFolder: '/home/azureuser/'
+        targetFolder: '/home/azureuser/'  # Replace with your target directory on the VM
         
     - task: SSH@0
       inputs:
-        sshEndpoint: 'automationdemo'
+        sshEndpoint: 'automationdemo'  # Replace with your SSH service connection name
         runOptions: 'inline'
         inline: 'sudo mv /home/azureuser/* /var/www/html/ && sudo systemctl restart apache2'
