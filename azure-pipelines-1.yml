@@ -12,7 +12,7 @@ stages:
     steps:
     - task: NodeTool@0
       inputs:
-        versionSpec: '18.10'
+        versionSpec: '18x'
       displayName: 'Install Node.js'
       
     - task: CmdLine@2
