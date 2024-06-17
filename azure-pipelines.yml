@@ -6,10 +6,10 @@ pool:
 
 variables:
   dockerImageName: 'saishadow5473/my-angular-app'  # Replace with your Docker Hub username and desired image name
-  dockerRegistryServiceConnection: 'myDockerRegistryConnection'  # Replace with your Docker registry service connection name
-  awsVmIp: 'your-aws-vm-ip'  # Replace with your AWS VM IP
-  awsVmUser: 'your-aws-vm-username'  # Replace with your AWS VM username
-  sshPrivateKey: '$(sshPrivateKey)'
+  dockerRegistryServiceConnection: 'MyDockerHub'  # Replace with your Docker registry service connection name
+  awsVmIp: '13.127.28.78'  # Replace with your AWS VM IP
+  awsVmUser: 'ubuntu'  # Replace with your AWS VM username
+  sshPrivateKey: '$(sshPrivateKey)'  # Reference to the secure SSH private key variable
 
 stages:
 - stage: Build
@@ -18,7 +18,7 @@ stages:
     steps:
     - task: NodeTool@0
       inputs:
-        versionSpec: '14.x'  # Adjust based on your Node.js version
+        versionSpec: '16.x'  # Adjust based on your Node.js version
       displayName: 'Install Node.js'
 
     - script: |
@@ -40,18 +40,16 @@ stages:
   dependsOn: Build
   jobs:
   - job: Deploy
+    pool:
+      vmImage: 'ubuntu-latest'
     steps:
-    - task: UseSSHKey@0
+    - task: UseSSH@0
       inputs:
-        sshPublicKey: 'your-public-key'  # Replace with your SSH public key
-        sshPassphrase: '$(sshPrivateKey)'
-      displayName: 'Use SSH key'
-
-    - script: |
-        ssh -o StrictHostKeyChecking=no $(awsVmUser)@$(awsVmIp) "
-          docker pull $(dockerImageName):latest &&
-          docker stop your-container-name || true &&
-          docker rm your-container-name || true &&
-          docker run -d --name your-container-name -p 80:80 $(dockerImageName):latest
-        "
-      displayName: 'Deploy Docker Container to AWS VM'
+        sshEndpoint: 'MySecureSSHConnection'  # Replace with your Azure DevOps SSH service connection endpoint name
+        runOptions: 'commands'
+        scriptType: 'bash'
+        scriptLocation: 'inline'
+        inlineScript: |
+          echo "SSH connection successful. Running remote commands..."
+          # Example: SSH into AWS VM and restart Docker container
+          ssh $(awsVmUser)@$(awsVmIp) "docker stop my-container && docker rm my-container && docker run -d --name my-container -p 80:80 $(dockerImageName):latest"
