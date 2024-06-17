@@ -44,7 +44,7 @@ stages:
     steps:
     - task: SSH@0
       inputs:
-        sshEndpoint: 'MySecureSSHConnection'  # Replace with your Azure DevOps SSH service connection endpoint name
+        sshEndpoint: 'newconnection'  # Replace with your Azure DevOps SSH service connection endpoint name
         runOptions: 'inlineScript'
         scriptType: 'bash'
         scriptLocation: 'inline'
