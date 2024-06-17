@@ -49,9 +49,14 @@ stages:
         # scriptType: 'bash'
         # scriptLocation: 'inline'
         inline: |
-          # Stop and remove the container if it exists
-          docker stop my-container || true  # Ignore errors if container is not found
-          docker rm my-container || true    # Ignore errors if container is not found
+          # Check if container exists before attempting to stop and remove it
+          if docker ps -a --format '{{.Names}}' | grep -q my-container; then
+            docker stop my-container || true
+            docker rm my-container || true
+          fi
+
+          # Retry pulling the Docker image in case of failure
+          docker pull $(dockerImageName):latest || true
 
           # Run your docker run command to start the container
           docker run -d --name my-container -p 80:80 $(dockerImageName):latest
