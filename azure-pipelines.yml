@@ -48,5 +48,11 @@ stages:
         runOptions: 'inline'
         # scriptType: 'bash'
         # scriptLocation: 'inline'
-        inline: 'docker stop my-container && docker rm my-container && docker run -d --name my-container -p 80:80 $(dockerImageName):latest'
+        inline: |
+          # Stop and remove the container if it exists
+          docker stop my-container || true  # Ignore errors if container is not found
+          docker rm my-container || true    # Ignore errors if container is not found
+
+          # Run your docker run command to start the container
+          docker run -d --name my-container -p 80:80 $(dockerImageName):latest
 
