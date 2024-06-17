@@ -51,4 +51,7 @@ stages:
         inlineScript: |
           echo "SSH connection successful. Running remote commands..."
           # Example: SSH into AWS VM and restart Docker container
-          ssh $(awsVmUser)@$(awsVmIp) -i $(sshPrivateKey) "docker stop my-container && docker rm my-container && docker run -d --name my-container -p 80:80 $(dockerImageName):latest"
+          docker stop my-container
+          docker rm my-container
+          docker run -d --name my-container -p 80:80 $(dockerImageName):latest
+
