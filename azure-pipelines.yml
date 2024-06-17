@@ -1,81 +1,57 @@
 trigger:
-  branches:
-    include:
-    - master
+  - none
 
 pool:
   vmImage: 'ubuntu-latest'
 
+variables:
+  dockerImageName: 'saishadow5473/my-angular-app'  # Replace with your Docker Hub username and desired image name
+  dockerRegistryServiceConnection: 'myDockerRegistryConnection'  # Replace with your Docker registry service connection name
+  awsVmIp: 'your-aws-vm-ip'  # Replace with your AWS VM IP
+  awsVmUser: 'your-aws-vm-username'  # Replace with your AWS VM username
+  sshPrivateKey: '$(sshPrivateKey)'
+
 stages:
-- stage: DeployStage
+- stage: Build
   jobs:
-  - job: Virtualmachine
+  - job: Build
     steps:
     - task: NodeTool@0
       inputs:
-        versionSpec: '18.10'
+        versionSpec: '14.x'  # Adjust based on your Node.js version
       displayName: 'Install Node.js'
-      
-    - task: CmdLine@2
-      displayName: 'npm install and build'
-      inputs:
-        script: |
-          npm install -g @angular/cli
-          npm audit fix --force
-          npm install
-          ng build
-          
-    - task: ArchiveFiles@2
-      inputs:
-        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/dist/automationdemo'
-        includeRootFolder: false
-        archiveType: 'zip'
-        archiveFile: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-        replaceExistingArchive: true
-        
-    - task: PublishBuildArtifacts@1
-      inputs:
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)/$(Build.BuildId).zip'
-        ArtifactName: 'drop'
 
+    - script: |
+        npm install
+        npm run build
+      displayName: 'Install dependencies and build Angular app'
+
+    - task: Docker@2
+      inputs:
+        containerRegistry: '$(dockerRegistryServiceConnection)'
+        repository: '$(dockerImageName)'
+        command: 'buildAndPush'
+        Dockerfile: '**/Dockerfile'
+        tags: |
+          latest
+      displayName: 'Build and Push Docker Image'
+
+- stage: Deploy
+  dependsOn: Build
+  jobs:
   - job: Deploy
-    displayName: 'Deploy to VM'
-    dependsOn:
-    - Virtualmachine
     steps:
-    - task: CopyFiles@2
+    - task: UseSSHKey@0
       inputs:
-        SourceFolder: '$(Pipeline.Workspace)'
-        Contents: '**/*.zip'
-        TargetFolder: '$(Build.ArtifactStagingDirectory)'
-        
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifactName: 'drop'
-        targetPath: '$(System.ArtifactsDirectory)'
-        
-    - powershell: |
-        Expand-Archive -Path $(System.ArtifactsDirectory)\$(Build.BuildId).zip -DestinationPath $(System.ArtifactsDirectory)\extracted
-      displayName: 'Extract artifact'
-      
-    - powershell: Get-ChildItem -Path $(System.ArtifactsDirectory)/extracted -Recurse
-      displayName: 'List Extracted Files'
-      
-    - task: CopyFiles@2
-      inputs:
-        SourceFolder: '$(System.ArtifactsDirectory)/extracted'
-        Contents: '**/*'
-        TargetFolder: '$(Build.ArtifactStagingDirectory)'
-        
-    - task: CopyFilesOverSSH@0
-      inputs:
-        sshEndpoint: 'automation'
-        sourceFolder: '$(System.ArtifactsDirectory)/extracted'
-        contents: '**/*'
-        targetFolder: '/home/azureuser/'
-        
-    - task: SSH@0
-      inputs:
-        sshEndpoint: 'automation'
-        runOptions: 'inline'
-        inline: 'sudo mv /home/azureuser/* /var/www/html/ && sudo systemctl restart apache2'
+        sshPublicKey: 'your-public-key'  # Replace with your SSH public key
+        sshPassphrase: '$(sshPrivateKey)'
+      displayName: 'Use SSH key'
+
+    - script: |
+        ssh -o StrictHostKeyChecking=no $(awsVmUser)@$(awsVmIp) "
+          docker pull $(dockerImageName):latest &&
+          docker stop your-container-name || true &&
+          docker rm your-container-name || true &&
+          docker run -d --name your-container-name -p 80:80 $(dockerImageName):latest
+        "
+      displayName: 'Deploy Docker Container to AWS VM'
